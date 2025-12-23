@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Parlamentarisches Abstimmungssystem</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #e9e9e9;
+    padding: 20px;
+}
+
+/* ===== Tabs ===== */
+.tabs {
+    display: flex;
+    margin-bottom: 15px;
+}
+.tab {
+    padding: 10px 20px;
+    background: #bbb;
+    margin-right: 5px;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+}
+.tab.active {
+    background: #1c1c1c;
+    color: white;
+}
+.page { display:none; }
+.page.active { display:block; }
+
+/* ===== Konsole ===== */
+.console {
+    background:#1c1c1c;
+    padding:20px;
+    width:520px;
+    border-radius:12px;
+}
+.row {
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:15px;
+}
+.button {
+    border:none;
+    font-weight:bold;
+    cursor:pointer;
+    box-shadow:0 4px 0 rgba(0,0,0,0.6);
+    transition:0.1s;
+}
+.button:active {
+    transform:translateY(4px);
+    box-shadow:none;
+}
+.round { width:110px;height:110px;border-radius:50%;font-size:18px; }
+.rect { width:160px;height:60px;border-radius:8px; }
+
+.ja { background:#2ecc71; }
+.nein { background:#e74c3c;color:white; }
+.enthaltung { background:#f1c40f; }
+.bestaetigen { background:#3498db;color:white; }
+.abbrechen { background:#e67e22;color:white; }
+.mikrofon { background:#7f8c8d;color:white; }
+
+/* ===== Ergebnisse ===== */
+.results {
+    background:white;
+    width:520px;
+    margin-top:20px;
+    padding:20px;
+    border-radius:10px;
+}
+.result-row {
+    display:flex;
+    align-items:center;
+    margin-bottom:8px;
+}
+.result-row span {
+    width:130px;
+    font-weight:bold;
+}
+.color-box {
+    width:18px;height:18px;border-radius:4px;margin-left:10px;
+}
+.status {
+    margin-top:15px;
+    text-align:center;
+    font-size:18px;
+    font-weight:bold;
+}
+
+/* ===== Fraktionen ===== */
+.faction {
+    background:white;
+    padding:10px;
+    margin-bottom:10px;
+    border-radius:8px;
+    display:flex;
+    gap:10px;
+}
+
+/* ===== Plenarsaal ===== */
+.plenum {
+    margin-top:20px;
+    width:520px;
+    height:260px;
+    position:relative;
+    overflow:hidden;
+}
+.seat {
+    position:absolute;
+    width:10px;
+    height:10px;
+    border-radius:50%;
+}
+</style>
+</head>
+
+<body>
+
+<div class="tabs">
+    <div class="tab active" onclick="showPage('abstimmung')">Abstimmung</div>
+    <div class="tab" onclick="showPage('fraktionen')">Fraktionen</div>
+    <div class="tab" onclick="showPage('plenum')">Plenarsaal</div>
+</div>
+
+<!-- ================= ABSTIMMUNG ================= -->
+<div id="abstimmung" class="page active">
+
+<div class="console">
+    <div class="row">
+        <button class="button round ja">JA</button>
+        <button class="button round nein">NEIN</button>
+        <button class="button round enthaltung">ENTHALTUNG</button>
+    </div>
+    <div class="row">
+        <button class="button rect bestaetigen" onclick="saveVote()">BESTÄTIGEN</button>
+        <button class="button rect abbrechen" onclick="resetAll()">ABBRECHEN</button>
+        <button class="button rect mikrofon" onclick="beep()">MIKROFON</button>
+    </div>
+</div>
+
+<div class="results">
+    <input id="voteName" placeholder="Name der Abstimmung" style="width:100%;margin-bottom:10px;">
+
+    <div class="result-row"><span>JA</span><span id="ja">0</span><div class="color-box ja"></div></div>
+    <div class="result-row"><span>NEIN</span><span id="nein">0</span><div class="color-box nein"></div></div>
+    <div class="result-row"><span>ENTHALTUNG</span><span id="enthaltung">0</span><div class="color-box enthaltung"></div></div>
+
+    <div class="status" id="status">—</div>
+
+    <select id="savedVotes" onchange="loadVote()" style="width:100%;margin-top:10px;">
+        <option>Gespeicherte Abstimmungen</option>
+    </select>
+</div>
+
+</div>
+
+<!-- ================= FRAKTIONEN ================= -->
+<div id="fraktionen" class="page">
+<h2>Fraktionen</h2>
+<div id="factions"></div>
+<button onclick="addFaction()">+ Fraktion hinzufügen</button>
+</div>
+
+<!-- ================= PLENUM ================= -->
+<div id="plenum" class="page">
+<h2>Plenarsaal</h2>
+<div class="plenum" id="plenumView"></div>
+</div>
+
+<script>
+function showPage(id){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.target.classList.add('active');
+}
+
+/* ===== Mikrofon ===== */
+function beep(){
+    const c=new AudioContext(),o=c.createOscillator(),g=c.createGain();
+    o.frequency.value=900; g.gain.value=0.05;
+    o.connect(g); g.connect(c.destination);
+    o.start(); setTimeout(()=>{o.stop();c.close();},150);
+}
+
+/* ===== Fraktionen ===== */
+function addFaction(){
+    const d=document.createElement("div");
+    d.className="faction";
+    d.innerHTML=`
+        <input placeholder="Fraktion">
+        <input type="number" value="0" min="0">
+        <select>
+            <option value="enthaltung">Enthaltung</option>
+            <option value="ja">Ja</option>
+            <option value="nein">Nein</option>
+        </select>
+    `;
+    d.querySelectorAll("input,select").forEach(e=>e.oninput=calculate);
+    factions.appendChild(d);
+}
+
+/* ===== Berechnung ===== */
+function calculate(){
+    let ja=0,nein=0,enth=0;
+    plenumView.innerHTML="";
+    let seatIndex=0;
+
+    document.querySelectorAll(".faction").forEach(f=>{
+        const m=+f.children[1].value;
+        const v=f.children[2].value;
+        if(v==="ja") ja+=m;
+        if(v==="nein") nein+=m;
+        if(v==="enthaltung") enth+=m;
+
+        for(let i=0;i<m;i++){
+            const angle=Math.PI*(seatIndex/Math.max(1,ja+nein+enth));
+            const x=260+220*Math.cos(angle);
+            const y=240-220*Math.sin(angle);
+            const s=document.createElement("div");
+            s.className="seat "+v;
+            s.style.left=x+"px";
+            s.style.top=y+"px";
+            plenumView.appendChild(s);
+            seatIndex++;
+        }
+    });
+
+    jaEl.textContent=ja; neinEl.textContent=nein; enthEl.textContent=enth;
+    const total=ja+nein+enth;
+    status.textContent= total && ja>total/2 ? "ANGENOMMEN":"ABGELEHNT";
+    status.style.color= ja>total/2 ? "#2ecc71":"#e74c3c";
+}
+
+/* ===== Speicherung ===== */
+function saveVote(){
+    const name=voteName.value||"Abstimmung";
+    const data=[...document.querySelectorAll(".faction")].map(f=>({
+        n:f.children[0].value,
+        m:f.children[1].value,
+        v:f.children[2].value
+    }));
+    localStorage.setItem(name,JSON.stringify(data));
+    updateList();
+}
+function loadVote(){
+    const d=JSON.parse(localStorage.getItem(savedVotes.value));
+    if(!d)return;
+    factions.innerHTML="";
+    d.forEach(x=>{
+        addFaction();
+        const f=factions.lastChild;
+        f.children[0].value=x.n;
+        f.children[1].value=x.m;
+        f.children[2].value=x.v;
+    });
+    calculate();
+}
+function updateList(){
+    savedVotes.innerHTML="<option>Gespeicherte Abstimmungen</option>";
+    Object.keys(localStorage).forEach(k=>{
+        const o=document.createElement("option");o.textContent=k;
+        savedVotes.appendChild(o);
+    });
+}
+function resetAll(){
+    factions.innerHTML="";
+    calculate();
+}
+const jaEl=document.getElementById("ja"),
+      neinEl=document.getElementById("nein"),
+      enthEl=document.getElementById("enthaltung"),
+      status=document.getElementById("status"),
+      factions=document.getElementById("factions"),
+      plenumView=document.getElementById("plenumView");
+
+updateList();
+</script>
+
+</body>
+</html>
